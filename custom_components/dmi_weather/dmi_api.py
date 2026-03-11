@@ -30,6 +30,7 @@ class DMIWeatherAPI:
         self._last_request_time = 0
         self._rate_limit_delay = 5.0
         self._max_retries = 3
+        self._update_lock = asyncio.Lock()
         
         # Use only the domain name - Home Assistant's HTTP client handles DNS
         self._api_urls = [
@@ -94,30 +95,39 @@ class DMIWeatherAPI:
 
     async def update(self) -> None:
         """Update weather data from DMI EDR API."""
-        for attempt in range(self._max_retries):
-            try:
-                await self._rate_limit()
-                collections = await self._get_collections()
-                if not collections:
-                    raise Exception("No EDR collections available")
-
-                collection_id = "harmonie_dini_sf"
-                if collection_id not in collections:
-                    collection_id = list(collections.keys())[0]
-                _LOGGER.debug("Using EDR collection: %s", collection_id)
-
-                await self._fetch_weather_data(collection_id)
-                _LOGGER.debug("Weather data updated successfully (collection: %s)", collection_id)
-                return
-            except Exception as err:
-                _LOGGER.warning("Attempt %d/%d failed: %s", attempt + 1, self._max_retries, err)
-                if attempt < self._max_retries - 1:
-                    wait_time = (2 ** attempt) * 2
-                    _LOGGER.info("Waiting %d seconds before retry...", wait_time)
-                    await asyncio.sleep(wait_time)
-                else:
-                    _LOGGER.error("All %d attempts failed. Last error: %s", self._max_retries, err)
-                    raise
+        if self._update_lock.locked():
+            _LOGGER.debug("Update already in progress, skipping concurrent request")
+            return
+        async with self._update_lock:
+            collection_id = "harmonie_dini_sf"
+            for attempt in range(self._max_retries):
+                try:
+                    await self._fetch_weather_data(collection_id)
+                    _LOGGER.debug("Weather data updated successfully (collection: %s)", collection_id)
+                    return
+                except Exception as err:
+                    _LOGGER.warning("Attempt %d/%d failed: %s", attempt + 1, self._max_retries, err)
+                    if attempt < self._max_retries - 1:
+                        if "Rate limit" in str(err):
+                            wait_time = 60
+                            _LOGGER.info("Rate limited by DMI API, waiting %d seconds before retry...", wait_time)
+                        elif "404" in str(err) or "No weather data" in str(err):
+                            _LOGGER.info("Collection %s not available, fetching available collections", collection_id)
+                            try:
+                                collections = await self._get_collections()
+                                if collections:
+                                    collection_id = list(collections.keys())[0]
+                                    _LOGGER.info("Falling back to collection: %s", collection_id)
+                            except Exception:
+                                pass
+                            wait_time = (2 ** attempt) * 2
+                        else:
+                            wait_time = (2 ** attempt) * 2
+                        _LOGGER.info("Waiting %d seconds before retry...", wait_time)
+                        await asyncio.sleep(wait_time)
+                    else:
+                        _LOGGER.error("All %d attempts failed. Last error: %s", self._max_retries, err)
+                        raise
 
     async def _get_collections(self) -> Dict[str, Any]:
         """Get available EDR collections."""
