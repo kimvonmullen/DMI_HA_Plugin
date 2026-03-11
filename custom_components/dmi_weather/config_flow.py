@@ -1,7 +1,10 @@
 """Config flow for DMI Weather integration."""
 from __future__ import annotations
 
+import logging
 import voluptuous as vol
+
+_LOGGER = logging.getLogger(__name__)
 from homeassistant import config_entries
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
 from homeassistant.data_entry_flow import FlowResult

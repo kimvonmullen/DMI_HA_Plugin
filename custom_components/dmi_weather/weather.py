@@ -88,11 +88,13 @@ class DMIWeatherEntity(WeatherEntity):
         """Update current weather data."""
         now = dt_util.utcnow()
         if self._last_update and (now - self._last_update) < self._update_interval:
+            _LOGGER.debug("Skipping update — next fetch in %s", self._update_interval - (now - self._last_update))
             return
         try:
             await self._api.update()
             self._last_update = dt_util.utcnow()
             self._attr_available = True
+            _LOGGER.debug("Entity updated — next fetch at %s", (now + self._update_interval).strftime("%H:%M UTC"))
         except Exception as err:
             _LOGGER.error("Error updating DMI EDR weather: %s", err)
             self._attr_available = False

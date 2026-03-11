@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from homeassistant.core import HomeAssistant
@@ -16,7 +17,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 class DMIWeatherAPI:
-    """DMI Weather API client with Docker DNS fallback."""
+    """DMI Weather API client."""
     
     def __init__(self, hass: HomeAssistant, latitude: float, longitude: float) -> None:
         self.hass = hass
@@ -69,14 +70,16 @@ class DMIWeatherAPI:
                     raise Exception(f"API request failed with status {response.status}")
                 
                 data = await response.json()
-                _LOGGER.debug("Successfully connected to DMI API")
+                _LOGGER.debug("Response received from %s", url)
                 return data
-                    
+
         except asyncio.TimeoutError:
-            _LOGGER.error("Timeout connecting to DMI EDR API")
+            _LOGGER.error("Timeout after %ds calling %s", DEFAULT_TIMEOUT, url)
             raise Exception("Timeout connecting to DMI EDR API. Please try again.")
         except Exception as e:
-            _LOGGER.error("Error connecting to DMI EDR API: %s", e)
+            if "Rate limit" in str(e) or "API request failed" in str(e) or "No weather data" in str(e):
+                raise
+            _LOGGER.error("Unexpected error calling %s: %s", url, e)
             raise Exception(f"Network error: {e}")
 
     async def test_connection(self) -> bool:
@@ -104,7 +107,8 @@ class DMIWeatherAPI:
                 _LOGGER.debug("Using EDR collection: %s", collection_id)
 
                 await self._fetch_weather_data(collection_id)
-                return  # Success
+                _LOGGER.debug("Weather data updated successfully (collection: %s)", collection_id)
+                return
             except Exception as err:
                 _LOGGER.warning("Attempt %d/%d failed: %s", attempt + 1, self._max_retries, err)
                 if attempt < self._max_retries - 1:
@@ -119,13 +123,13 @@ class DMIWeatherAPI:
         """Get available EDR collections."""
         await self._rate_limit()
         data = await self._make_request(EDR_COLLECTIONS_ENDPOINT)
-        
-        # Process collections data
+
         collections = {}
         if "collections" in data:
             for collection in data["collections"]:
                 collections[collection["id"]] = collection
-        
+
+        _LOGGER.debug("Available collections: %s", list(collections.keys()))
         return collections
 
     async def _fetch_weather_data(self, collection_id: str) -> Dict[str, Any]:
@@ -219,8 +223,14 @@ class DMIWeatherAPI:
             self.hourly_forecast_data = hourly_data[1:25]  # Next 24 hours
             self.forecast_data = hourly_data[1:]  # All future data
 
+            _LOGGER.debug(
+                "Parsed %d hourly entries, current: %s, temp: %s°C",
+                len(hourly_data),
+                hourly_data[0]["time"].strftime("%H:%M UTC"),
+                round(hourly_data[0]["temperature"], 1) if hourly_data[0]["temperature"] is not None else "N/A",
+            )
+
             # Aggregate into daily forecast
-            from collections import defaultdict
             daily_groups: Dict[Any, List] = defaultdict(list)
             for entry in hourly_data[1:]:
                 daily_groups[entry["time"].date()].append(entry)
@@ -243,6 +253,7 @@ class DMIWeatherAPI:
                     "weather_code": dominant,
                 })
             self.daily_forecast_data = daily_data
+            _LOGGER.debug("Built %d daily forecast entries", len(daily_data))
 
     def _extract_parameter_value(self, ranges: Dict, parameter: str, time_index: int) -> Optional[float]:
         """Extract parameter value from EDR ranges data."""
