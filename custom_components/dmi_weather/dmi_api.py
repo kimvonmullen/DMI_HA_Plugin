@@ -170,6 +170,9 @@ class DMIWeatherAPI:
             _LOGGER.error("No time values in EDR response")
             return
 
+        used_lon = axes.get("x", {}).get("values", [None])[0]
+        used_lat = axes.get("y", {}).get("values", [None])[0]
+        _LOGGER.debug("API returned data for coordinates: lat=%s, lon=%s", used_lat, used_lon)
         _LOGGER.debug("Processing %d time steps", len(time_values))
         
         # Process hourly data
