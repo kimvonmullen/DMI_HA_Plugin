@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
-    DMI_EDR_BASE_URL, DMI_AUTH_HEADER, EDR_COLLECTIONS_ENDPOINT,
+    DMI_EDR_BASE_URL, EDR_COLLECTIONS_ENDPOINT,
     EDR_POSITION_QUERY, DEFAULT_TIMEOUT, EDR_PARAMETERS, MAX_FORECAST_DAYS
 )
 
@@ -18,11 +18,10 @@ _LOGGER = logging.getLogger(__name__)
 class DMIWeatherAPI:
     """DMI Weather API client with Docker DNS fallback."""
     
-    def __init__(self, hass: HomeAssistant, latitude: float, longitude: float, api_key: str) -> None:
+    def __init__(self, hass: HomeAssistant, latitude: float, longitude: float) -> None:
         self.hass = hass
         self.latitude = latitude
         self.longitude = longitude
-        self.api_key = api_key
         self.current_data: Dict[str, Any] = {}
         self.hourly_forecast_data: List[Dict[str, Any]] = []
         self.forecast_data: List[Dict[str, Any]] = []
@@ -46,17 +45,15 @@ class DMIWeatherAPI:
 
     async def _make_request(self, endpoint: str, params: Dict = None) -> Dict[str, Any]:
         """Make API request using Home Assistant's HTTP client."""
-        headers = {DMI_AUTH_HEADER: self.api_key}
-        
         # Use Home Assistant's built-in HTTP client
         session = async_get_clientsession(self.hass)
-        
+
         # Use the domain URL
         url = f"{self._api_urls[0]}{endpoint}"
         _LOGGER.debug("Making request to: %s", url)
-        
+
         try:
-            async with session.get(url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT) as response:
+            async with session.get(url, params=params, timeout=DEFAULT_TIMEOUT) as response:
                 if response.status == 429:
                     _LOGGER.warning("Rate limit exceeded, waiting before retry")
                     await asyncio.sleep(10)
@@ -100,7 +97,7 @@ class DMIWeatherAPI:
                 if not collections:
                     raise Exception("No EDR collections available")
 
-                collection_id = "harmonie_dini_eps_means"
+                collection_id = "harmonie_dini_sf"
                 if collection_id not in collections:
                     collection_id = list(collections.keys())[0]
                 _LOGGER.debug("Using EDR collection: %s", collection_id)
@@ -148,6 +145,7 @@ class DMIWeatherAPI:
             "coords": f"POINT({self.longitude} {self.latitude})",
             "datetime": f"{start_time_str}/{end_time_str}",
             "parameter-name": ",".join(essential_params),
+            "crs": "crs84",
             "f": "CoverageJSON"
         }
 

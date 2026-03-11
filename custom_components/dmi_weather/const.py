@@ -5,13 +5,10 @@ DOMAIN = "dmi_weather"
 CONF_LATITUDE = "latitude"
 CONF_LONGITUDE = "longitude"
 CONF_NAME = "name"
-CONF_API_KEY = "api_key"
-
 DEFAULT_NAME = "DMI Weather"
 
 # DMI EDR API configuration
-DMI_EDR_BASE_URL = "https://dmigw.govcloud.dk/v1/forecastedr"
-DMI_AUTH_HEADER = "X-Gravitee-Api-Key"
+DMI_EDR_BASE_URL = "https://opendataapi.dmi.dk/v1/forecastedr"
 
 # EDR API endpoints
 EDR_COLLECTIONS_ENDPOINT = "/collections"
@@ -20,6 +17,9 @@ EDR_POSITION_QUERY = "/position"
 # API request parameters
 DEFAULT_TIMEOUT = 60  # Increased to 60 seconds for slow API responses
 MAX_FORECAST_DAYS = 5
+
+CONF_UPDATE_INTERVAL = "update_interval"
+DEFAULT_UPDATE_INTERVAL = 30  # minutes
 
 # Weather condition mappings for EDR data
 WEATHER_CONDITIONS = {

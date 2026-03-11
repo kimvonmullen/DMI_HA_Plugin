@@ -7,7 +7,7 @@ from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
 from homeassistant.data_entry_flow import FlowResult
 from typing import Any
 
-from .const import DEFAULT_NAME, DOMAIN, CONF_API_KEY
+from .const import DEFAULT_NAME, DOMAIN, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
 from .dmi_api import DMIWeatherAPI
 
 
@@ -33,14 +33,14 @@ class DMIWeatherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         data_schema=vol.Schema(
                             {
                                 vol.Required(CONF_NAME, default=user_input.get(CONF_NAME, DEFAULT_NAME)): str,
-                                vol.Required(CONF_API_KEY, default=user_input.get(CONF_API_KEY, "")): str,
                                 vol.Required(CONF_LATITUDE, default=user_input.get(CONF_LATITUDE, "")): str,
                                 vol.Required(CONF_LONGITUDE, default=user_input.get(CONF_LONGITUDE, "")): str,
+                                vol.Required(CONF_UPDATE_INTERVAL, default=user_input.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)): vol.All(int, vol.Range(min=5, max=1440)),
                             }
                         ),
                         errors=errors,
                         description_placeholders={
-                            "docs_url": "https://www.dmi.dk/data/dmi-opendata/"
+                            "docs_url": "https://www.dmi.dk/friedata/dokumentation/apis"
                         },
                     )
                 
@@ -67,13 +67,13 @@ class DMIWeatherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
-                    vol.Required(CONF_API_KEY): str,
-                    vol.Required(CONF_LATITUDE): str,
-                    vol.Required(CONF_LONGITUDE): str,
+                    vol.Required(CONF_LATITUDE, default=str(self.hass.config.latitude)): str,
+                    vol.Required(CONF_LONGITUDE, default=str(self.hass.config.longitude)): str,
+                    vol.Required(CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL): vol.All(int, vol.Range(min=5, max=1440)),
                 }
             ),
             errors=errors,
             description_placeholders={
-                "docs_url": "https://www.dmi.dk/data/dmi-opendata/"
+                "docs_url": "https://www.dmi.dk/friedata/dokumentation/apis"
             },
         )

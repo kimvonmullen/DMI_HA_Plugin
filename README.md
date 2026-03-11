@@ -80,7 +80,6 @@ This integration provides:
 ### Example Configuration for Rydebäck, Sweden
 
 - **Name**: Rydebäck Weather
-- **DMI API Key**: `YOUR_API_KEY_HERE` (get your free key from DMI Open Data Portal)
 - **Latitude**: 55.9667
 - **Longitude**: 12.7667
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+
+SCAN_INTERVAL = timedelta(minutes=1)  # HA polls every minute; actual API calls throttled per config
 from typing import Any, cast
 
 from homeassistant.components.weather import (
@@ -36,8 +38,9 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_LATITUDE as CONF_LAT,
     CONF_LONGITUDE as CONF_LON,
-    CONF_API_KEY,
+    CONF_UPDATE_INTERVAL,
     DEFAULT_NAME,
+    DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     WEATHER_CONDITIONS,
 )
@@ -55,11 +58,11 @@ async def async_setup_entry(
     name = config_entry.data[CONF_NAME]
     latitude = config_entry.data[CONF_LATITUDE]
     longitude = config_entry.data[CONF_LONGITUDE]
-    api_key = config_entry.data[CONF_API_KEY]
+    update_interval = config_entry.data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
 
-    api = DMIWeatherAPI(hass, latitude, longitude, api_key)
-    
-    async_add_entities([DMIWeatherEntity(name, api)], True)
+    api = DMIWeatherAPI(hass, latitude, longitude)
+
+    async_add_entities([DMIWeatherEntity(name, api, update_interval)], True)
 
 
 class DMIWeatherEntity(WeatherEntity):
@@ -73,16 +76,22 @@ class DMIWeatherEntity(WeatherEntity):
     _attr_native_wind_speed_unit = UnitOfSpeed.METERS_PER_SECOND
     _attr_supported_features = WeatherEntityFeature.FORECAST_DAILY | WeatherEntityFeature.FORECAST_HOURLY
 
-    def __init__(self, name: str, api: DMIWeatherAPI) -> None:
+    def __init__(self, name: str, api: DMIWeatherAPI, update_interval_minutes: int) -> None:
         """Initialize the DMI Weather EDR entity."""
         self._api = api
         self._attr_name = name
         self._attr_unique_id = f"dmi_edr_{api.latitude}_{api.longitude}"
+        self._update_interval = timedelta(minutes=update_interval_minutes)
+        self._last_update: datetime | None = None
 
     async def async_update(self) -> None:
         """Update current weather data."""
+        now = dt_util.utcnow()
+        if self._last_update and (now - self._last_update) < self._update_interval:
+            return
         try:
             await self._api.update()
+            self._last_update = dt_util.utcnow()
             self._attr_available = True
         except Exception as err:
             _LOGGER.error("Error updating DMI EDR weather: %s", err)
