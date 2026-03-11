@@ -61,14 +61,18 @@ async def async_setup_entry(
     update_interval = config_entry.data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
 
     api = DMIWeatherAPI(hass, latitude, longitude)
+    entity = DMIWeatherEntity(name, api, update_interval)
 
-    async_add_entities([DMIWeatherEntity(name, api, update_interval)], True)
+    async_add_entities([entity], False)
+
+    # Schedule initial data fetch immediately as a background task (non-blocking)
+    hass.async_create_task(entity.async_update())
 
 
 class DMIWeatherEntity(WeatherEntity):
     """Representation of a DMI Weather entity."""
 
-    _attr_attribution = "Data provided by Danish Meteorological Institute (DMI) via EDR API"
+    _attr_attribution = "Data provided by Danish Meteorological Institute's (DMI) Open Data API"
     _attr_native_precipitation_unit = UnitOfPrecipitationDepth.MILLIMETERS
     _attr_native_pressure_unit = UnitOfPressure.HPA
     _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
