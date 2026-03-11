@@ -25,6 +25,7 @@ class DMIWeatherAPI:
         self.current_data: Dict[str, Any] = {}
         self.hourly_forecast_data: List[Dict[str, Any]] = []
         self.forecast_data: List[Dict[str, Any]] = []
+        self.daily_forecast_data: List[Dict[str, Any]] = []
         self._last_request_time = 0
         self._rate_limit_delay = 5.0
         self._max_retries = 3
@@ -214,6 +215,31 @@ class DMIWeatherAPI:
             self.current_data = hourly_data[0].copy()
             self.hourly_forecast_data = hourly_data[1:25]  # Next 24 hours
             self.forecast_data = hourly_data[1:]  # All future data
+
+            # Aggregate into daily forecast
+            from collections import defaultdict
+            daily_groups: Dict[Any, List] = defaultdict(list)
+            for entry in hourly_data[1:]:
+                daily_groups[entry["time"].date()].append(entry)
+
+            daily_data = []
+            condition_priority = ["rainy", "cloudy", "partlycloudy", "clear"]
+            for day_date in sorted(daily_groups.keys()):
+                entries = daily_groups[day_date]
+                temps = [e["temperature"] for e in entries if e["temperature"] is not None]
+                precips = [e["precipitation"] for e in entries if e["precipitation"] is not None]
+                winds = [e["wind_speed"] for e in entries if e["wind_speed"] is not None]
+                conditions = [e["weather_code"] for e in entries if e["weather_code"] is not None]
+                dominant = next((c for c in condition_priority if c in conditions), "clear")
+                daily_data.append({
+                    "time": datetime.combine(day_date, datetime.min.time()).replace(tzinfo=dt_util.UTC),
+                    "temperature_max": max(temps) if temps else None,
+                    "temperature_min": min(temps) if temps else None,
+                    "precipitation": sum(precips) if precips else None,
+                    "wind_speed": max(winds) if winds else None,
+                    "weather_code": dominant,
+                })
+            self.daily_forecast_data = daily_data
 
     def _extract_parameter_value(self, ranges: Dict, parameter: str, time_index: int) -> Optional[float]:
         """Extract parameter value from EDR ranges data."""

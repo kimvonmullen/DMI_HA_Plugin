@@ -103,12 +103,7 @@ class DMIWeatherEntity(WeatherEntity):
         if not self._api.current_data:
             return None
         
-        # Map DMI weather codes to Home Assistant conditions
-        weather_code = self._api.current_data.get("weather_code")
-        if weather_code is not None:
-            return WEATHER_CONDITIONS.get(str(weather_code), "unknown")
-        
-        return None
+        return self._api.current_data.get("weather_code")
 
     @property
     def native_temperature(self) -> float | None:
@@ -171,11 +166,11 @@ class DMIWeatherEntity(WeatherEntity):
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
         """Return the daily forecast."""
-        if not self._api.forecast_data:
+        if not self._api.daily_forecast_data:
             return None
 
         forecast_list = []
-        for forecast in self._api.forecast_data:
+        for forecast in self._api.daily_forecast_data:
             forecast_dict = {
                 ATTR_FORECAST_TIME: forecast.get("time"),
                 ATTR_FORECAST_NATIVE_TEMP: forecast.get("temperature_max"),
@@ -185,13 +180,10 @@ class DMIWeatherEntity(WeatherEntity):
                 ATTR_FORECAST_WIND_BEARING: forecast.get("wind_direction"),
             }
             
-            # Map weather condition
             weather_code = forecast.get("weather_code")
             if weather_code is not None:
-                forecast_dict[ATTR_FORECAST_CONDITION] = WEATHER_CONDITIONS.get(
-                    str(weather_code), "unknown"
-                )
-            
+                forecast_dict[ATTR_FORECAST_CONDITION] = weather_code
+
             forecast_list.append(Forecast(**forecast_dict))
 
         return forecast_list
@@ -211,13 +203,10 @@ class DMIWeatherEntity(WeatherEntity):
                 ATTR_FORECAST_WIND_BEARING: forecast.get("wind_direction"),
             }
             
-            # Map weather condition
             weather_code = forecast.get("weather_code")
             if weather_code is not None:
-                forecast_dict[ATTR_FORECAST_CONDITION] = WEATHER_CONDITIONS.get(
-                    str(weather_code), "unknown"
-                )
-            
+                forecast_dict[ATTR_FORECAST_CONDITION] = weather_code
+
             forecast_list.append(Forecast(**forecast_dict))
 
         return forecast_list
